@@ -3,6 +3,7 @@
 # │                      RHADS RHEL Execution Environment                       │
 # │                            Default Variables                                │
 # └─────────────────────────────────────────────────────────────────────────────┘
+rhads_rhel_execution_environment_host_user: "{{ student_name }}"
 
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
 # ║                        Execution Environment Image                            ║
