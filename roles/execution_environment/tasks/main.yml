@@ -22,16 +22,24 @@
       register: _r_pull_result
 
     - name: Retag the downloaded ee image
-      containers.podman.podman_image:
-        name: "{{ rhads_rhel_execution_environment_image_name }}:{{ rhads_rhel_execution_environment_image_tag }}"
-        tag: "{{ rhads_rhel_execution_environment_image_retag }}"
-        state: present
+      containers.podman.podman_tag:
+        image: "{{ rhads_rhel_execution_environment_image_name }}:{{ rhads_rhel_execution_environment_image_tag }}"
+        target_names:
+          - "{{ rhads_rhel_execution_environment_retag_image_name }}:{{ rhads_rhel_execution_environment_retag_image_tag }}"
       when:
         - _r_pull_result is succeeded
-        - rhads_rhel_execution_environment_image_retag is defined
+        - rhads_rhel_execution_environment_retag_image | bool
+
+    - name: Remove the original downloaded execution environment after retag
+      containers.podman.podman_image:
+        name: "{{ rhads_rhel_execution_environment_image_name }}:{{ rhads_rhel_execution_environment_image_tag }}"
+        state: absent
+      when:
+        - _r_pull_result is succeeded
+        - rhads_rhel_execution_environment_retag_image | bool
 
     - name: Display pull results
       debug:
-        msg: "Successfully downloaded execution environment: {{ rhads_rhel_execution_environment_image_name }}" 
+        msg: "Successfully downloaded execution environment: {{ ee_image }}" 
       when: _r_pull_result is succeeded
 
