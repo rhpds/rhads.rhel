@@ -29,5 +29,5 @@ rhads_rhel_execution_environment_retag_image_tag: "latest"
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
 # ║                            Debug Message Variable                             ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
-ee_image: "{{ rhads_rhel_execution_environment_retag_image_name if rhads_rhel_execution_environment_retag_image else rhads_rhel_execution_environment_image_name }}:{{ rhads_rhel_execution_environment_retag_image_tag if rhads_rhel_execution_environment_retag_image else rhads_rhel_execution_environment_image_name_tag }}"
+ee_image: "{{ rhads_rhel_execution_environment_retag_image_name if rhads_rhel_execution_environment_retag_image else rhads_rhel_execution_environment_image_name }}:{{ rhads_rhel_execution_environment_retag_image_tag if rhads_rhel_execution_environment_retag_image else rhads_rhel_execution_environment_image_tag }}"
 
