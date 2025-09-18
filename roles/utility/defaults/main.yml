@@ -1,0 +1,155 @@
+---
+# defaults file for utility
+utility_system_packages:
+  - podman
+
+utility_base_hostname: ""
+
+utility_network_name: utility
+utility_quadlet_path: /etc/containers/systemd
+utility_temp_path: /tmp/utility_tmp
+utility_systemd_scope: system
+
+utility_postgresql_image: registry.redhat.io/rhel9/postgresql-15:latest
+utility_rhbk_image: registry.redhat.io/rhbk/keycloak-rhel9:26.2
+utility_rhbk_src_pem_cert: ""
+utility_rhbk_src_pem_key: ""
+utility_rhbk_temp_pem_cert: "{{ utility_temp_path }}/rhbk.pem"
+utility_rhbk_temp_pem_key: "{{ utility_temp_path }}/rhbk.key"
+utility_rhbk_temp_p12: "{{ utility_temp_path }}/rhbk.p12"
+utility_rhbk_cert_pass: "password1234"
+utility_rhbk_keystore_container_path: "/opt/keycloak/conf/server.keystore"
+utility_rhbk_temp_jks: "{{ utility_temp_path }}/rhbk.jks"
+utility_rhbk_jks_alias: rhbk
+utility_rhbk_podman_secret_keystore_name: rhbk_keystore
+utility_rhbk_admin_user: ads_admin
+utility_rhbk_admin_password: redhat123
+
+utility_rhbk_temp_rhtpa_client_cli: "{{ utility_temp_path }}/client-cli.json"
+utility_rhbk_temp_rhtpa_client_frontend: "{{ utility_temp_path }}/client-frontend.json"
+utility_rhbk_temp_rhtpa_client_testing_manager: "{{ utility_temp_path }}/client-testing-manager.json"
+utility_rhbk_temp_rhtpa_client_testing_user: "{{ utility_temp_path }}/client-testing-user.json"
+utility_rhbk_temp_rhbk_startup: "{{ utility_temp_path }}/setup_rhbk.sh"
+utility_rhbk_container_config_path: /etc/init-data
+utility_rhbk_container_rhbk_startup: "/opt/keycloak/bin/setup_rhbk.sh"
+utility_rhbk_container_rhtpa_client_cli: "{{ utility_rhbk_container_config_path }}/client-cli.json"
+utility_rhbk_container_rhtpa_client_frontend: "{{ utility_rhbk_container_config_path }}/client-frontend.json"
+utility_rhbk_container_rhtpa_client_testing_manager: "{{ utility_rhbk_container_config_path }}/client-testing-manager.json"
+utility_rhbk_container_rhtpa_client_testing_user: "{{ utility_rhbk_container_config_path }}/client-testing-user.json"
+
+utility_rhbk_podman_rhbk_startup_secret: rhbk_startup_script
+utility_rhbk_podman_rhtpa_client_cli_secret: rhtpa_client_cli
+utility_rhbk_podman_rhtpa_client_frontend_secret: rhtpa_client_frontend
+utility_rhbk_podman_rhtpa_client_testing_manager_secret: rhtpa_client_testing_manager
+utility_rhbk_podman_rhtpa_client_testing_user_secret: rhtpa_client_testing_user
+
+# PostgreSQL Variables
+utility_rhbk_quadlet_postgresql_rhtas_name: postgresql-rhtas
+utility_rhbk_quadlet_postgresql_rhtas_database: rhtas
+utility_rhbk_quadlet_postgresql_rhtas_user: rhtas
+utility_rhbk_quadlet_postgresql_rhtas_password: rhtas1234
+utility_rhbk_quadlet_postgresql_rhtas_admin_password: rhtasAdmin123
+utility_rhbk_quadlet_postgresql_rhtas_port: 5432
+utility_rhbk_quadlet_postgresql_rhtas_volume: postgresql-rhtas
+
+utility_rhbk_quadlet_postgresql_rhtpa_name: postgresql-rhtpa
+utility_rhbk_quadlet_postgresql_rhtpa_database: rhtpa
+utility_rhbk_quadlet_postgresql_rhtpa_user: rhtpa
+utility_rhbk_quadlet_postgresql_rhtpa_password: rhtpa1234
+utility_rhbk_quadlet_postgresql_rhtpa_admin_password: rhtpaAdmin1234
+utility_rhbk_quadlet_postgresql_rhtpa_port: 5532
+utility_rhbk_quadlet_postgresql_rhtpa_volume: postgresql-rhtpa
+
+utility_rhbk_quadlet_postgresql_rhbk_name: postgresql-rhbk
+utility_rhbk_quadlet_postgresql_rhbk_database: rhbk
+utility_rhbk_quadlet_postgresql_rhbk_user: rhbk
+utility_rhbk_quadlet_postgresql_rhbk_password: rhbk1234
+utility_rhbk_quadlet_postgresql_rhbk_admin_password: rhbkAdmin1234
+utility_rhbk_quadlet_postgresql_rhbk_port: 5632
+utility_rhbk_quadlet_postgresql_rhbk_volume: postgresql-rhbk
+
+
+utility_quadlets:
+  - name: "{{ utility_rhbk_quadlet_postgresql_rhtas_name }}"
+    image: "{{ utility_postgresql_image }}"
+    env:
+      POSTGRESQL_DATABASE: "{{ utility_rhbk_quadlet_postgresql_rhtas_database }}"
+      POSTGRESQL_USER: "{{ utility_rhbk_quadlet_postgresql_rhtas_user }}"
+      POSTGRESQL_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhtas_password }}"
+      POSTGRESQL_ADMIN_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhtas_admin_password }}"
+    volumes:
+      - "{{ utility_rhbk_quadlet_postgresql_rhtas_volume }}:/var/lib/pgsql/data"
+    ports:
+      - "{{ utility_rhbk_quadlet_postgresql_rhtas_port }}:5432"
+    network: "{{ utility_network_name }}"
+  - name: "{{ utility_rhbk_quadlet_postgresql_rhtpa_name }}"
+    image: "{{ utility_postgresql_image }}"
+    env:
+      POSTGRESQL_DATABASE: "{{ utility_rhbk_quadlet_postgresql_rhtpa_database }}"
+      POSTGRESQL_USER: "{{ utility_rhbk_quadlet_postgresql_rhtpa_user }}"
+      POSTGRESQL_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhtpa_password }}"
+      POSTGRESQL_ADMIN_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhtpa_admin_password }}"
+    volumes:
+      - "{{ utility_rhbk_quadlet_postgresql_rhtpa_volume }}:/var/lib/pgsql/data"
+    ports:
+      - "{{ utility_rhbk_quadlet_postgresql_rhtpa_port }}:5432"
+    network: "{{ utility_network_name }}"
+  - name: "{{ utility_rhbk_quadlet_postgresql_rhbk_name }}"
+    image: "{{ utility_postgresql_image }}"
+    env:
+      POSTGRESQL_DATABASE: "{{ utility_rhbk_quadlet_postgresql_rhbk_database }}"
+      POSTGRESQL_USER: "{{ utility_rhbk_quadlet_postgresql_rhbk_user }}"
+      POSTGRESQL_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhbk_password }}"
+      POSTGRESQL_ADMIN_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhbk_admin_password }}"
+    volumes:
+      - "{{ utility_rhbk_quadlet_postgresql_rhbk_volume }}:/var/lib/pgsql/data"
+    ports:
+      - "{{ utility_rhbk_quadlet_postgresql_rhbk_port }}:5432"
+    network: "{{ utility_network_name }}"
+  - name: rhbk
+    image: "{{ utility_rhbk_image }}"
+    exec: start --hostname-strict false
+    env:
+      KC_DB: "postgres"
+      KC_DB_USERNAME: "{{ utility_rhbk_quadlet_postgresql_rhbk_user }}"
+      KC_DB_PASSWORD: "{{ utility_rhbk_quadlet_postgresql_rhbk_password }}"
+      KC_DB_URL: "jdbc:postgresql://{{ utility_rhbk_quadlet_postgresql_rhbk_name }}:5432/{{ utility_rhbk_quadlet_postgresql_rhbk_database }}"
+      KC_HTTPS_KEY_STORE_FILE: "{{ utility_rhbk_keystore_container_path }}"
+      KC_HTTPS_KEY_STORE_PASSWORD: "{{ utility_rhbk_cert_pass }}"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "{{ utility_rhbk_admin_user }}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ utility_rhbk_admin_password }}"
+    secrets:
+      - source={{ utility_rhbk_podman_secret_keystore_name }},target={{ utility_rhbk_keystore_container_path }}
+    ports:
+      - "443:8443"
+    network: "{{ utility_network_name }}"
+  - name: rhbk-setup
+    image: "{{ utility_rhbk_image }}"
+    type: oneshot
+    entrypoint: "{{ utility_rhbk_container_rhbk_startup }}"
+    secrets:
+      - "source={{ utility_rhbk_podman_secret_keystore_name }},target={{ utility_rhbk_keystore_container_path }}"
+      - "source={{ utility_rhbk_podman_rhbk_startup_secret }},target={{ utility_rhbk_container_rhbk_startup }},mode=0454"
+      - "source={{ utility_rhbk_podman_rhtpa_client_cli_secret }},target={{ utility_rhbk_container_rhtpa_client_cli }}"
+      - "source={{ utility_rhbk_podman_rhtpa_client_frontend_secret }},target={{ utility_rhbk_container_rhtpa_client_frontend }}"
+      - "source={{ utility_rhbk_podman_rhtpa_client_testing_manager_secret }},target={{ utility_rhbk_container_rhtpa_client_testing_manager }}"
+      - "source={{ utility_rhbk_podman_rhtpa_client_testing_user_secret }},target={{ utility_rhbk_container_rhtpa_client_testing_user }}"
+
+utility_prepull_images: true
+utility_registry_host: registry.redhat.io
+registry_credentials_username: ""
+registry_credentials_password: ""
+
+
+# RHBK Initialization Script Variables
+utility_rhbk_setup_rhtas_realm: trusted-artifact-signer
+utility_rhbk_setup_rhtas_client_id: trusted-artifact-signer
+utility_rhbk_setup_rhtas_user: admin
+utility_rhbk_setup_rhtas_password: admin123456
+utility_rhbk_setup_rhpta_realm: chicken
+utility_rhbk_setup_rhpta_user: admin
+utility_rhbk_setup_rhpta_password: admin123456
+utility_rhbk_setup_rhpta_client_cli_secret: 5460cc91-4e20-4edd-881c-b15b169f8a79
+utility_rhbk_setup_rhpta_client_testing_manager_secret: ca48053c-3b82-4650-a98d-4cace7f2d567
+utility_rhbk_setup_rhpta_client_testing_user_secret: 0e6bf990-43b4-4efb-95d7-b24f2b94a525
+...

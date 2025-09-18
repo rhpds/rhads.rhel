@@ -1,0 +1,223 @@
+---
+
+- name: Ensure Certificate Variables Provided
+  ansible.builtin.assert:
+    that:
+      - utility_rhbk_src_pem_cert | default('', true) | trim | length > 0
+      - utility_rhbk_src_pem_key | default('', true) | trim | length > 0
+    quiet: true
+    fail_msg: "Certificate variables are not all defined. Please define utility_rhbk_src_pem_cert and utility_rhbk_src_pem_key."
+
+- name: Ensure Base Hostname Variable Provided
+  ansible.builtin.assert:
+    that:
+      - utility_base_hostname | default('', true) | trim | length > 0
+    quiet: true
+    fail_msg: "Base hostname variable is not defined. Please define utility_base_hostname."
+
+- name: Verify Certificates Exist
+  delegate_to: localhost
+  block:
+    - name: Verify Certificate Files Exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: cert_files
+      loop:
+        - "{{ utility_rhbk_src_pem_cert }}"
+        - "{{ utility_rhbk_src_pem_key }}"
+
+    - name: Assert Certificate Files Exist
+      ansible.builtin.assert:
+        that:
+          - cert_file.stat.exists
+        fail_msg: "Certificate file {{ cert_file.item }} does not exist."
+        quiet: true
+      loop: "{{ cert_files.results }}"
+      loop_control:
+        loop_var: cert_file
+
+- name: Install System Packages dependencies
+  ansible.builtin.package: # noqa: package-latest
+    name: "{{ utility_system_packages }}"
+    state: latest
+
+- name: Create quadlet Directory
+  ansible.builtin.file:
+    path: "{{ utility_quadlet_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Create Utility network
+  ansible.builtin.template:
+    src: utility.network.j2
+    dest: "{{ utility_quadlet_path }}/utility.network"
+    mode: '0644'
+
+- name: Create Volumes
+  ansible.builtin.template:
+    src: quadlet.volume.j2
+    dest: "{{ utility_quadlet_path }}/{{ utility_volume_name }}.volume"
+    mode: '0644'
+  loop_control:
+    label: "{{ utility_volume_name }}"
+    loop_var: utility_volume_name
+  loop: "{{ utility_quadlets | selectattr('volumes', 'defined') | map(attribute='volumes') | ansible.builtin.flatten | list | ansible.builtin.unique | map('split', ':') | map('first') | list }}"
+
+- name: Authenticate to registry
+  when:
+    - registry_credentials_username | default("", true) | length > 0
+    - registry_credentials_password | default("", true) | length > 0
+  block:
+    - name: Check if Podman is already logged in to {{ utility_registry_host }}
+      ansible.builtin.command: podman login --get-login {{ utility_registry_host }}
+      register: logincheck
+      failed_when: logincheck.stdout == 'Error":" not logged into {{ utility_registry_host }}'
+      changed_when: logincheck.stdout | string != registry_credentials_username | string
+
+    - name: Podman login to {{ utility_registry_host }}
+      ansible.builtin.command: >
+        podman login {{ utility_registry_host }} -u '{{ registry_credentials_username }}' --password {{ registry_credentials_password }}
+      register: podman_login_result
+      when: logincheck.stdout | string != registry_credentials_username | string
+      changed_when: true
+      no_log: true
+
+- name: Prepull Images
+  when: utility_prepull_images | bool
+  ansible.builtin.command: podman pull {{ utility_container_image }}
+  loop_control:
+    label: "Pulling {{ utility_container_image }}"
+    loop_var: utility_container_image
+  loop: "{{ utility_quadlets | map(attribute='image') | list | ansible.builtin.unique }}"
+  changed_when: false
+
+- name: Manage Certificates
+  block:
+    - name: Create certificate temp directory
+      ansible.builtin.file:
+        path: "{{ utility_temp_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy RHBK PEM certificates to temp directory
+      ansible.builtin.copy:
+        src: "{{ cert_file.src }}"
+        dest: "{{ cert_file.dest }}"
+        mode: '0644'
+      loop_control:
+        loop_var: cert_file
+      loop:
+        - src: "{{ utility_rhbk_src_pem_cert }}"
+          dest: "{{ utility_rhbk_temp_pem_cert }}"
+        - src: "{{ utility_rhbk_src_pem_key }}"
+          dest: "{{ utility_rhbk_temp_pem_key }}"
+    - name: Convert to PKCS12 format
+      ansible.builtin.command: >
+        openssl pkcs12 -export
+        -in {{ utility_rhbk_temp_pem_cert }}
+        -inkey {{ utility_rhbk_temp_pem_key }}
+        -out {{ utility_rhbk_temp_p12 }}
+        -name rhbk
+        -passout pass:{{ utility_rhbk_cert_pass }}
+      args:
+        creates: "{{ utility_rhbk_temp_p12 }}"
+    - name: Create JKS using RHBK container
+      ansible.builtin.command: >
+        podman run --rm
+        --entrypoint keytool
+        -v {{ utility_temp_path }}:{{ utility_temp_path }}:Z
+        -u 0
+        {{ utility_rhbk_image }}
+        -importkeystore -srckeystore {{ utility_rhbk_temp_p12 }} -srcstoretype PKCS12 -srcstorepass {{ utility_rhbk_cert_pass }} -destkeystore {{ utility_rhbk_temp_jks }} -deststoretype JKS -deststorepass {{ utility_rhbk_cert_pass }} -alias {{ utility_rhbk_jks_alias }} --noprompt
+    - name: Create Podman Secret for JKS
+      ansible.builtin.command: >
+        podman secret create {{ utility_rhbk_podman_secret_keystore_name }} --replace {{ utility_rhbk_temp_jks }}
+  always:
+    - name: Clean up certificates
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ utility_rhbk_temp_pem_cert }}"
+        - "{{ utility_rhbk_temp_pem_key }}"
+        - "{{ utility_rhbk_temp_p12 }}"
+        - "{{ utility_rhbk_temp_jks }}"
+
+- name: Manage RHBK Startup Script
+  block:
+    - name: Create RHBK setup script
+      ansible.builtin.template:
+        src: setup_rhbk.sh.j2
+        dest: "{{ utility_rhbk_temp_rhbk_startup }}"
+        mode: '0755'
+
+    - name: Create RHTPA CLI Client Manifest
+      ansible.builtin.template:
+        src: rhbk_client_cli.json.j2
+        dest: "{{ utility_rhbk_temp_rhtpa_client_cli }}"
+        mode: '0755'
+
+    - name: Create RHTPA Frontend Client Manifest
+      ansible.builtin.template:
+        src: rhbk_client_frontend.json.j2
+        dest: "{{ utility_rhbk_temp_rhtpa_client_frontend }}"
+        mode: '0755'
+
+    - name: Create RHTPA Test Manager Client Manifest
+      ansible.builtin.template:
+        src: rhbk_client_testing_manager.json.j2
+        dest: "{{ utility_rhbk_temp_rhtpa_client_testing_manager }}"
+        mode: '0755'
+
+    - name: Create RHTPA Test User Client Manifest
+      ansible.builtin.template:
+        src: rhbk_client_testing_user.json.j2
+        dest: "{{ utility_rhbk_temp_rhtpa_client_testing_user }}"
+        mode: '0755'
+
+    - name: Create RHBK Script Secret
+      ansible.builtin.command: >
+        podman secret create {{ utility_rhbk_podman_rhbk_startup_secret }} --replace {{ utility_rhbk_temp_rhbk_startup }}
+
+    - name: Create RHTPA CLI Secret
+      ansible.builtin.command: >
+        podman secret create {{ utility_rhbk_podman_rhtpa_client_cli_secret }} --replace {{ utility_rhbk_temp_rhtpa_client_cli }}
+
+    - name: Create RHTPA Fontend Secret
+      ansible.builtin.command: >
+        podman secret create {{ utility_rhbk_podman_rhtpa_client_frontend_secret }} --replace {{ utility_rhbk_temp_rhtpa_client_frontend }}
+
+    - name: Create RHTPA Testing Manager Secret
+      ansible.builtin.command: >
+        podman secret create {{ utility_rhbk_podman_rhtpa_client_testing_manager_secret }} --replace {{ utility_rhbk_temp_rhtpa_client_testing_manager }}
+
+    - name: Create RHTPA Testing User Secret
+      ansible.builtin.command: >
+        podman secret create {{ utility_rhbk_podman_rhtpa_client_testing_user_secret }} --replace {{ utility_rhbk_temp_rhtpa_client_testing_user }}
+
+- name: Create Containers
+  ansible.builtin.template:
+    src: container.service.j2
+    dest: "{{ utility_quadlet_path }}/{{ utility_container.name }}.container"
+    mode: '0644'
+  loop_control:
+    label: "{{ utility_container.name }}"
+    loop_var: utility_container
+  loop: "{{ utility_quadlets  }}"
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+    force: true
+    scope: "{{ utility_systemd_scope }}"
+
+- name: "Start container service"
+  ansible.builtin.systemd_service:
+    state: started
+    name: "{{ utility_container.name }}"
+    enabled: true
+  loop_control:
+    label: "{{ utility_container.name }}"
+    loop_var: utility_container
+  loop: "{{ utility_quadlets  }}"
+...
