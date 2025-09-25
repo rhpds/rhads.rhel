@@ -18,5 +18,11 @@
     --eab-hmac-key "{{ certbot_cert_manager_zerossl_hmac_key }}"
     --server "{{ certbot_cert_manager_acme_url }}" --standalone --preferred-challenges http
 
-
-- fail:
+- name: Fetch certificates
+  ansible.builtin.fetch:
+    src: /etc/letsencrypt/live/{{ rhads_rhel_certbot_certificates[0] }}/{{ item }}
+    dest: /tmp/{{ item }}
+    flat: true
+  loop:
+    - fullchain.pem
+    - privkey.pem
