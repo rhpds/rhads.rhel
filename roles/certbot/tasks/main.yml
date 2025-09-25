@@ -1,0 +1,10 @@
+---
+- name: Install certbot
+  ansible.builtin.pip:
+    name: certbot
+
+- name: Debug domains
+  debug:
+    msg: "{{ rhads_rhel_certbot_certificates }}"
+
+- fail:
