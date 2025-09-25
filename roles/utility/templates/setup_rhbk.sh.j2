@@ -1,0 +1,169 @@
+#!/bin/bash
+
+trap break INT
+
+kcadm() { local cmd="$1" ; shift ; "/opt/keycloak/bin/kcadm.sh" "$cmd" "$@" --config /tmp/kcadm.config --truststore {{ utility_rhbk_keystore_container_path }} --trustpass {{ utility_rhbk_cert_pass }} ; }
+
+die() {
+    echo "$*" 1>&2
+    false
+}
+
+while ! kcadm config credentials --server https://rhbk.{{ utility_base_hostname }} --realm master --user {{ utility_rhbk_admin_user }} --password {{ utility_rhbk_admin_password }}  &> /dev/null; do
+  echo "Waiting for Keycloak to start up..."
+  sleep 5
+done
+
+echo "Keycloak ready"
+
+echo "Setting up Red Hat Trusted Artifact Signer"
+
+# create realm
+RHTAS_REALM_OPTS=()
+RHTAS_REALM_OPTS+=(-s enabled=true)
+RHTAS_REALM_OPTS+=(-s "displayName=Red Hat Trusted Artifact Signer")
+RHTAS_REALM_OPTS+=(-s registrationAllowed=true)
+RHTAS_REALM_OPTS+=(-s resetPasswordAllowed=true)
+RHTAS_REALM_OPTS+=(-s loginWithEmailAllowed=false)
+
+if kcadm get "realms/{{ utility_rhbk_setup_rhtas_realm }}" &> /dev/null ; then
+  # exists -> update
+  kcadm update "realms/{{ utility_rhbk_setup_rhtas_realm }}" "${RHTAS_REALM_OPTS[@]}"
+else
+  # need to create
+  kcadm create realms -s "realm={{ utility_rhbk_setup_rhtas_realm }}" "${RHTAS_REALM_OPTS[@]}"
+fi
+
+# create client
+# create clients - frontend
+ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "clientId={{ utility_rhbk_setup_rhtas_client_id }}" --fields id --format csv --noquotes)
+CLIENT_OPTS=()
+CLIENT_OPTS+=(-s "redirectUris=[\"http://localhost/auth/callback\"]")
+CLIENT_OPTS+=(-s "clientId={{ utility_rhbk_setup_rhtas_client_id }}")
+CLIENT_OPTS+=(-s publicClient=true)
+if [[ -n "$ID" ]]; then
+  kcadm delete "clients/${ID}" -r "{{ utility_rhbk_setup_rhtas_realm }}"
+  kcadm create clients -r "{{ utility_rhbk_setup_rhtas_realm }}" "${CLIENT_OPTS[@]}"
+else
+  kcadm create clients -r "{{ utility_rhbk_setup_rhtas_realm }}" "${CLIENT_OPTS[@]}"
+fi
+
+# create user
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user }}" --fields id --format csv --noquotes)
+# the next check might seem weird, but that's just Keycloak reporting a "user not found" in two different ways
+if [[ -n "$ID" || "$ID" == "[]" ]]; then
+  kcadm update "users/$ID" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s enabled=true
+else
+  kcadm create users -r "{{ utility_rhbk_setup_rhtas_realm }}" -s "username={{ utility_rhbk_setup_rhtas_user }}" -s enabled=true -s email=test@example.com -s emailVerified=true -s firstName=Admin -s lastName=Admin
+fi
+
+echo "Setting up Red Hat Trusted Profile Analyzer"
+
+# create realm
+RHTPA_REALM_OPTS=()
+RHTPA_REALM_OPTS+=(-s enabled=true)
+RHTPA_REALM_OPTS+=(-s "displayName=Trusted Content")
+RHTPA_REALM_OPTS+=(-s registrationAllowed=true)
+RHTPA_REALM_OPTS+=(-s resetPasswordAllowed=true)
+RHTPA_REALM_OPTS+=(-s loginWithEmailAllowed=false)
+
+# if Keycloak has an internal name, set the external name here
+if [[ -n "$SSO_FRONTEND_URL" ]]; then
+RHTPA_REALM_OPTS+=(-s "attributes.frontendUrl=$SSO_FRONTEND_URL")
+fi
+
+if kcadm get "realms/{{ utility_rhbk_setup_rhpta_realm }}" &> /dev/null ; then
+  # exists -> update
+  kcadm update "realms/{{ utility_rhbk_setup_rhpta_realm }}" "${RHTPA_REALM_OPTS[@]}"
+else
+  # need to create
+  kcadm create realms -s "realm={{ utility_rhbk_setup_rhpta_realm }}" "${RHTPA_REALM_OPTS[@]}"
+fi
+
+# create realm roles
+kcadm create roles -r "{{ utility_rhbk_setup_rhpta_realm }}" -s name=chicken-user || true
+kcadm create roles -r "{{ utility_rhbk_setup_rhpta_realm }}" -s name=chicken-manager || true
+kcadm create roles -r "{{ utility_rhbk_setup_rhpta_realm }}" -s name=chicken-admin || true
+# add chicken-user as default role
+kcadm add-roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --rname "default-roles-{{ utility_rhbk_setup_rhpta_realm }}" --rolename chicken-user
+
+MANAGER_ID=$(kcadm get roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --fields id,name --format csv --noquotes | grep ",chicken-manager" | cut -d, -f1)
+
+# create scopes
+# shellcheck disable=SC2043
+for i in read:document; do
+  kcadm create client-scopes -r "{{ utility_rhbk_setup_rhpta_realm }}" -s "name=$i" -s protocol=openid-connect || true
+done
+
+for i in create:document update:document delete:document; do
+  kcadm create client-scopes -r "{{ utility_rhbk_setup_rhpta_realm }}" -s "name=$i" -s protocol=openid-connect || true
+  ID=$(kcadm get client-scopes -r "{{ utility_rhbk_setup_rhpta_realm }}" --fields id,name --format csv --noquotes | grep ",${i}" | cut -d, -f1)
+  # add all scopes to the chicken-manager
+  kcadm create "client-scopes/${ID}/scope-mappings/realm" -r "{{ utility_rhbk_setup_rhpta_realm }}" -b '[{"name":"chicken-manager", "id":"'"${MANAGER_ID}"'"}]' || true
+done
+
+
+# create clients - frontend
+ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhpta_realm }}" --query exact=true --query "clientId=frontend" --fields id --format csv --noquotes)
+CLIENT_OPTS=()
+CLIENT_OPTS+=(-s "redirectUris=[\"http://localhost:*\",\"https://rhtpa.{{ utility_base_hostname }}\",\"https://rhtpa.{{ utility_base_hostname }}/*\"]")
+if [[ -n "$ID" ]]; then
+  kcadm delete "clients/${ID}" -r "{{ utility_rhbk_setup_rhpta_realm }}"
+  kcadm create clients -r "{{ utility_rhbk_setup_rhpta_realm }}" -f "{{ utility_rhbk_container_rhtpa_client_frontend }}" "${CLIENT_OPTS[@]}"
+else
+  kcadm create clients -r "{{ utility_rhbk_setup_rhpta_realm }}" -f "{{ utility_rhbk_container_rhtpa_client_frontend }}" "${CLIENT_OPTS[@]}"
+fi
+
+# create service accounts
+CLIENTS=""
+for client in "cli" testing-manager testing-user
+do
+    ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhpta_realm }}" --query exact=true --query "clientId=${client}" --fields id --format csv --noquotes)
+    CLIENT_OPTS=()
+    if [[ -n "$ID" ]]; then
+      kcadm delete "clients/${ID}" -r "{{ utility_rhbk_setup_rhpta_realm }}"
+      kcadm create clients -r "{{ utility_rhbk_setup_rhpta_realm }}" -f "{{ utility_rhbk_container_config_path }}/client-${client}.json" "${CLIENT_OPTS[@]}"
+    else
+      kcadm create clients -r "{{ utility_rhbk_setup_rhpta_realm }}" -f "{{ utility_rhbk_container_config_path }}/client-${client}.json" "${CLIENT_OPTS[@]}"
+    fi
+    # now set the client-secret
+    ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhpta_realm }}" --query exact=true --query "clientId=${client}" --fields id --format csv --noquotes)
+    if [ "${client}" == "cli" ]; then
+        kcadm add-roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --uusername service-account-${client} --rolename chicken-manager
+        kcadm update "clients/${ID}" -r "{{ utility_rhbk_setup_rhpta_realm }}" -s "secret={{ utility_rhbk_setup_rhpta_client_cli_secret }}"
+    fi
+    if [ "${client}" == "testing-manager" ]; then
+        kcadm add-roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --uusername service-account-${client} --rolename chicken-manager
+        kcadm update "clients/${ID}" -r "{{ utility_rhbk_setup_rhpta_realm }}" -s "secret={{ utility_rhbk_setup_rhpta_client_testing_manager_secret }}"
+    fi
+    if [ "${client}" == "testing-user" ]; then
+        kcadm add-roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --uusername service-account-${client} --rolename chicken-user
+        kcadm update "clients/${ID}" -r "{{ utility_rhbk_setup_rhpta_realm }}" -s "secret={{ utility_rhbk_setup_rhpta_client_testing_user_secret }}"
+    fi
+done
+
+# create user
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhpta_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhpta_user }}" --fields id --format csv --noquotes)
+# the next check might seem weird, but that's just Keycloak reporting a "user not found" in two different ways
+if [[ -n "$ID" || "$ID" == "[]" ]]; then
+  kcadm update "users/$ID" -r "{{ utility_rhbk_setup_rhpta_realm }}" -s enabled=true
+else
+  kcadm create users -r "{{ utility_rhbk_setup_rhpta_realm }}" -s "username={{ utility_rhbk_setup_rhpta_user }}" -s enabled=true -s email=test@example.com -s emailVerified=true -s firstName=Admin -s lastName=Admin
+fi
+
+# set role
+kcadm add-roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --uusername "{{ utility_rhbk_setup_rhpta_user }}" --rolename chicken-admin
+kcadm add-roles -r "{{ utility_rhbk_setup_rhpta_realm }}" --uusername "{{ utility_rhbk_setup_rhpta_user }}" --rolename chicken-manager
+
+# set password
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhpta_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhpta_user }}" --fields id --format csv --noquotes)
+kcadm update "users/${ID}/reset-password" -r "{{ utility_rhbk_setup_rhpta_realm }}" -s type=password -s "value={{ utility_rhbk_setup_rhpta_password }}" -s temporary=false -n
+
+# Should not be needed
+#if [[ -f "${INIT_DATA}/there-is-more.sh" ]]; then
+#  echo Performing additional setup
+#  . "${INIT_DATA}/there-is-more.sh"
+#fi
+
+echo SSO initialization complete
+

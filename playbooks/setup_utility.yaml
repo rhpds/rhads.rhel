@@ -1,0 +1,11 @@
+---
+
+- name: Setup Utility Node
+  hosts: utility
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Utility role
+      ansible.builtin.include_role:
+        name: rhads.rhel.utility
+...

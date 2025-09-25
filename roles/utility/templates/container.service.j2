@@ -1,0 +1,60 @@
+[Unit]
+{% if utility_container.description is defined %}
+Description={{ utility_container.description }}
+{% endif %}
+
+After=local-fs.target
+
+[Container]
+Image={{ utility_container.image }}
+
+{% if utility_container.ports is defined %}
+{% for port in utility_container.ports %}
+PublishPort={{ port }}
+{% endfor %}
+{% endif %}
+
+ContainerName={{ utility_container.name }}
+
+{% if utility_container.env is defined %}
+{% for k, v in utility_container.env.items() %}
+Environment={{ k }}="{{ v }}"
+{% endfor %}
+{% endif %}
+
+{% if utility_container.volumes is defined %}
+{% for volume in utility_container.volumes %}
+Volume={{ volume }}
+{% endfor %}
+{% endif %}
+
+{% if utility_container.secrets is defined %}
+{% for secret in utility_container.secrets %}
+Secret={{ secret }}
+{% endfor %}
+{% endif %}
+
+{% if utility_container.exec is defined %}
+Exec={{ utility_container.exec }}
+{% endif %}
+
+{% if utility_container.entrypoint is defined %}
+Entrypoint={{ utility_container.entrypoint }}
+{% endif %}
+
+{% if utility_container.network is defined %}
+Network={{ utility_container.network }}.network
+{% endif %}
+
+
+[Service]
+{% if utility_container.type is defined %}
+Type={{ utility_container.type }}
+{% endif %}
+
+{% if utility_container.type is not defined or utility_container.type != "oneshot" %}
+Restart=always
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target default.target
