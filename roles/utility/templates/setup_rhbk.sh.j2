@@ -38,7 +38,7 @@ fi
 # create clients - frontend
 ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "clientId={{ utility_rhbk_setup_rhtas_client_id }}" --fields id --format csv --noquotes)
 CLIENT_OPTS=()
-CLIENT_OPTS+=(-s "redirectUris=[\"http://localhost/auth/callback\"]")
+CLIENT_OPTS+=(-s "redirectUris=[\"*\","urn:ietf:wg:oauth:2.0:oob\"]")
 CLIENT_OPTS+=(-s "clientId={{ utility_rhbk_setup_rhtas_client_id }}")
 CLIENT_OPTS+=(-s publicClient=true)
 if [[ -n "$ID" ]]; then
@@ -56,6 +56,11 @@ if [[ -n "$ID" || "$ID" == "[]" ]]; then
 else
   kcadm create users -r "{{ utility_rhbk_setup_rhtas_realm }}" -s "username={{ utility_rhbk_setup_rhtas_user }}" -s enabled=true -s email=test@example.com -s emailVerified=true -s firstName=Admin -s lastName=Admin
 fi
+
+# set password
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user }}" --fields id --format csv --noquotes)
+kcadm update "users/${ID}/reset-password" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s type=password -s "value={{ utility_rhbk_setup_rhtas_password }}" -s temporary=false -n
+
 
 echo "Setting up Red Hat Trusted Profile Analyzer"
 
