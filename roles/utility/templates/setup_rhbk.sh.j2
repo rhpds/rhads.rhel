@@ -48,19 +48,31 @@ else
   kcadm create clients -r "{{ utility_rhbk_setup_rhtas_realm }}" "${CLIENT_OPTS[@]}"
 fi
 
-# create user
-ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user }}" --fields id --format csv --noquotes)
+# create user 1
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user1_username }}" --fields id --format csv --noquotes)
 # the next check might seem weird, but that's just Keycloak reporting a "user not found" in two different ways
 if [[ -n "$ID" || "$ID" == "[]" ]]; then
   kcadm update "users/$ID" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s enabled=true
 else
-  kcadm create users -r "{{ utility_rhbk_setup_rhtas_realm }}" -s "username={{ utility_rhbk_setup_rhtas_user }}" -s enabled=true -s email=test@example.com -s emailVerified=true -s firstName=Admin -s lastName=Admin
+  kcadm create users -r "{{ utility_rhbk_setup_rhtas_realm }}" -s "username={{ utility_rhbk_setup_rhtas_user1_username }}" -s enabled=true -s email="{{ utility_rhbk_setup_rhtas_user1_username }}@{{ utility_rhbk_setup_rhtas_email_domain }}" -s emailVerified=true -s firstName=Admin -s lastName=Admin
 fi
 
-# set password
-ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user }}" --fields id --format csv --noquotes)
-kcadm update "users/${ID}/reset-password" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s type=password -s "value={{ utility_rhbk_setup_rhtas_password }}" -s temporary=false -n
+# set password for user 1
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user1_username }}" --fields id --format csv --noquotes)
+kcadm update "users/${ID}/reset-password" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s type=password -s "value={{ utility_rhbk_setup_rhtas_user1_password }}" -s temporary=false -n
 
+# create user 2
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user2_username }}" --fields id --format csv --noquotes)
+# the next check might seem weird, but that's just Keycloak reporting a "user not found" in two different ways
+if [[ -n "$ID" || "$ID" == "[]" ]]; then
+  kcadm update "users/$ID" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s enabled=true
+else
+  kcadm create users -r "{{ utility_rhbk_setup_rhtas_realm }}" -s "username={{ utility_rhbk_setup_rhtas_user2_username }}" -s enabled=true -s email="{{ utility_rhbk_setup_rhtas_user2_username }}@{{ utility_rhbk_setup_rhtas_email_domain }}" -s emailVerified=true -s firstName=Admin -s lastName=Admin
+fi
+
+# set password for user 2
+ID=$(kcadm get users -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "username={{ utility_rhbk_setup_rhtas_user2_username }}" --fields id --format csv --noquotes)
+kcadm update "users/${ID}/reset-password" -r "{{ utility_rhbk_setup_rhtas_realm }}" -s type=password -s "value={{ utility_rhbk_setup_rhtas_user2_password }}" -s temporary=false -n
 
 echo "Setting up Red Hat Trusted Profile Analyzer"
 
