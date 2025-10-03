@@ -38,7 +38,7 @@ fi
 # create clients - frontend
 ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhtas_realm }}" --query exact=true --query "clientId={{ utility_rhbk_setup_rhtas_client_id }}" --fields id --format csv --noquotes)
 CLIENT_OPTS=()
-CLIENT_OPTS+=(-s "redirectUris=[\"*\","urn:ietf:wg:oauth:2.0:oob\"]")
+CLIENT_OPTS+=(-s "redirectUris=[\"*\",\"urn:ietf:wg:oauth:2.0:oob\"]")
 CLIENT_OPTS+=(-s "clientId={{ utility_rhbk_setup_rhtas_client_id }}")
 CLIENT_OPTS+=(-s publicClient=true)
 if [[ -n "$ID" ]]; then
@@ -86,7 +86,7 @@ RHTPA_REALM_OPTS+=(-s loginWithEmailAllowed=false)
 
 # if Keycloak has an internal name, set the external name here
 if [[ -n "$SSO_FRONTEND_URL" ]]; then
-RHTPA_REALM_OPTS+=(-s "attributes.frontendUrl=$SSO_FRONTEND_URL")
+RHTPA_REALM_OPTS+=(-s "attributes.frontendUrl=${SSO_FRONTEND_URL}")
 fi
 
 if kcadm get "realms/{{ utility_rhbk_setup_rhpta_realm }}" &> /dev/null ; then
