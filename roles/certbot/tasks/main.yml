@@ -1,0 +1,28 @@
+---
+- name: Install python3-pip
+  ansible.builtin.yum:
+    name: python3-pip
+
+- name: Install certbot
+  ansible.builtin.pip:
+    name: certbot
+
+- name: Set the domains as parameters
+  ansible.builtin.set_fact:
+    certbot_domains: "-d {{ rhads_rhel_certbot_certificates | join (' -d ') }}"
+
+- name: Run certbot
+  ansible.builtin.command: |
+    /usr/local/bin/certbot certonly -n --agree-tos --email rhpds@redhat.com {{ certbot_domains }}
+    --eab-kid "{{ certbot_cert_manager_zerossl_eab_key_id }}"
+    --eab-hmac-key "{{ certbot_cert_manager_zerossl_hmac_key }}"
+    --server "{{ certbot_cert_manager_acme_url }}" --standalone --preferred-challenges http
+
+- name: Fetch certificates
+  ansible.builtin.fetch:
+    src: /etc/letsencrypt/live/{{ rhads_rhel_certbot_certificates[0] }}/{{ item }}
+    dest: /tmp/{{ item }}
+    flat: true
+  loop:
+    - fullchain.pem
+    - privkey.pem
