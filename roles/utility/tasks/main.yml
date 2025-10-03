@@ -40,6 +40,10 @@
   ansible.builtin.package: # noqa: package-latest
     name: "{{ utility_system_packages }}"
     state: latest
+  register: r_package
+  until: r_package is success
+  retries: 5
+  delay: 30
 
 - name: Create quadlet Directory
   ansible.builtin.file:
