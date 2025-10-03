@@ -144,8 +144,11 @@ registry_credentials_password: ""
 # RHBK Initialization Script Variables
 utility_rhbk_setup_rhtas_realm: trusted-artifact-signer
 utility_rhbk_setup_rhtas_client_id: trusted-artifact-signer
-utility_rhbk_setup_rhtas_user: admin
-utility_rhbk_setup_rhtas_password: admin123456
+utility_rhbk_setup_rhtas_user1_username: chris
+utility_rhbk_setup_rhtas_user1_password: R3dh4t#!
+utility_rhbk_setup_rhtas_user2_username: mary
+utility_rhbk_setup_rhtas_user2_password: R3dh4t#!
+utility_rhbk_setup_rhtas_email_domain: redhat.com
 utility_rhbk_setup_rhpta_realm: chicken
 utility_rhbk_setup_rhpta_user: admin
 utility_rhbk_setup_rhpta_password: admin123456
