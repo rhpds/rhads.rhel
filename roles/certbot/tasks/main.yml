@@ -8,6 +8,10 @@
     name: certbot
 
 - name: Run certbot
+  register: r_certbot
+  until: r_certbot is success
+  retries: 5
+  delay: 60
   ansible.builtin.command: |
     /usr/local/bin/certbot certonly -n --agree-tos --email rhpds@redhat.com -d {{ certbot_domains | join (' -d ') }}
     --eab-kid "{{ certbot_cert_manager_zerossl_eab_key_id }}"
