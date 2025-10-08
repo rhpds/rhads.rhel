@@ -23,8 +23,8 @@
 
 - name: Fetch certificates
   ansible.builtin.fetch:
-    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/{{ certbot_domains.1 }}
-    dest: /tmp/{{ certbot_domains.0 }}{{ certbot_domains.1 }}
+    src: /etc/letsencrypt/live/{{ certbot_domains.0.0 }}/{{ certbot_domains.1 }}
+    dest: /tmp/{{ certbot_domains.0.0 }}{{ certbot_domains.1 }}
     flat: true
   loop: "{{ rhads_rhel_certbot_certificates | zip('fullchain.pem','privkey.pem') | list  }}"
   loop_control:
