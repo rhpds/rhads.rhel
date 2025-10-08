@@ -21,11 +21,20 @@
   loop_control:
     loop_var: certbot_domains
 
-- name: Fetch certificates
+- name: Fetch fullchain.pem certificate
   ansible.builtin.fetch:
-    src: /etc/letsencrypt/live/{{ certbot_domains.0.0 }}/{{ certbot_domains.1 }}
-    dest: /tmp/{{ certbot_domains.0.0 }}{{ certbot_domains.1 }}
+    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/fullchain.pem'
+    dest: /tmp/{{ certbot_domains.0 }}fullchain.pem
     flat: true
-  loop: "{{ rhads_rhel_certbot_certificates | zip('fullchain.pem','privkey.pem') | list  }}"
+  loop: "{{ rhads_rhel_certbot_certificates  }}"
+  loop_control:
+    loop_var: certbot_domains
+
+- name: Fetch privkey.pem certificate
+  ansible.builtin.fetch:
+    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/privkey.pem'
+    dest: /tmp/{{ certbot_domains.0 }}privkey.pem
+    flat: true
+  loop: "{{ rhads_rhel_certbot_certificates  }}"
   loop_control:
     loop_var: certbot_domains
