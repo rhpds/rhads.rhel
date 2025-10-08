@@ -23,7 +23,7 @@
 
 - name: Fetch fullchain.pem certificate
   ansible.builtin.fetch:
-    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/fullchain.pem'
+    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/fullchain.pem
     dest: /tmp/{{ certbot_domains.0 }}fullchain.pem
     flat: true
   loop: "{{ rhads_rhel_certbot_certificates  }}"
@@ -32,7 +32,7 @@
 
 - name: Fetch privkey.pem certificate
   ansible.builtin.fetch:
-    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/privkey.pem'
+    src: /etc/letsencrypt/live/{{ certbot_domains.0 }}/privkey.pem
     dest: /tmp/{{ certbot_domains.0 }}privkey.pem
     flat: true
   loop: "{{ rhads_rhel_certbot_certificates  }}"
