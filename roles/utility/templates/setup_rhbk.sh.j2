@@ -9,7 +9,7 @@ die() {
     false
 }
 
-while ! kcadm config credentials --server https://rhbk-{{ utility_base_hostname }} --realm master --user {{ utility_rhbk_admin_user }} --password {{ utility_rhbk_admin_password }}  &> /dev/null; do
+while ! kcadm config credentials --server https://rhbk.{{ utility_base_hostname }} --realm master --user {{ utility_rhbk_admin_user }} --password {{ utility_rhbk_admin_password }}  &> /dev/null; do
   echo "Waiting for Keycloak to start up..."
   sleep 5
 done
@@ -123,7 +123,7 @@ done
 # create clients - frontend
 ID=$(kcadm get clients -r "{{ utility_rhbk_setup_rhpta_realm }}" --query exact=true --query "clientId=frontend" --fields id --format csv --noquotes)
 CLIENT_OPTS=()
-CLIENT_OPTS+=(-s "redirectUris=[\"http://localhost:*\",\"https://rhtpa-{{ utility_base_hostname }}\",\"https://rhtpa-{{ utility_base_hostname }}/*\"]")
+CLIENT_OPTS+=(-s "redirectUris=[\"http://localhost:*\",\"https://rhtpa.{{ utility_base_hostname }}\",\"https://rhtpa.{{ utility_base_hostname }}/*\"]")
 if [[ -n "$ID" ]]; then
   kcadm delete "clients/${ID}" -r "{{ utility_rhbk_setup_rhpta_realm }}"
   kcadm create clients -r "{{ utility_rhbk_setup_rhpta_realm }}" -f "{{ utility_rhbk_container_rhtpa_client_frontend }}" "${CLIENT_OPTS[@]}"
