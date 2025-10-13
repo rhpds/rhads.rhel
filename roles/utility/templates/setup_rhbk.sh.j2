@@ -9,7 +9,7 @@ die() {
     false
 }
 
-while ! kcadm config credentials --server https://rhbk.{{ utility_base_hostname }} --realm master --user {{ utility_rhbk_admin_user }} --password {{ utility_rhbk_admin_password }}  &> /dev/null; do
+while ! kcadm config credentials --server https://rhbk-{{ utility_base_hostname }} --realm master --user {{ utility_rhbk_admin_user }} --password {{ utility_rhbk_admin_password }}  &> /dev/null; do
   echo "Waiting for Keycloak to start up..."
   sleep 5
 done
