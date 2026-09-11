@@ -17,6 +17,7 @@
 
 - name: Verify Certificates Exist
   delegate_to: localhost
+  become: false
   block:
     - name: Verify Certificate Files Exist
       ansible.builtin.stat:
